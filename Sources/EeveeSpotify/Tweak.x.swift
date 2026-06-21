@@ -180,10 +180,10 @@ struct EeveeSpotify: Tweak {
 
             }
             
-            // Settings integration
-            UniversalSettingsIntegrationGroup().activate()
-            // Also activate the banner for 9.1.x to ensure visibility if menu is missing
-            // V91SettingsIntegrationGroup().activate()
+            // Settings integration (guarded: skips hooks for classes absent in this
+            // Spotify build, e.g. ProfileSettingsSection/RootSettingsViewController
+            // removed in 9.1.58, which would otherwise crash via an Orion fatalError)
+            activateUniversalSettingsIntegration()
             
             NSLog("[EeveeSpotify] Initialization complete for 9.1.x")
             
@@ -252,7 +252,7 @@ struct EeveeSpotify: Tweak {
         }
         
         // Always activate settings integration (except for 9.1.x which exits early above)
-        UniversalSettingsIntegrationGroup().activate()
+        activateUniversalSettingsIntegration()
         SettingsIntegrationGroup().activate()
     }
 }

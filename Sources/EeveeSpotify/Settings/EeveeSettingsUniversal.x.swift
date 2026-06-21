@@ -2,12 +2,38 @@ import Orion
 import SwiftUI
 import UIKit
 
-// Universal settings integration that works across all Spotify versions
+// Universal settings integration that works across all Spotify versions.
+// Only SettingsNavigationStackHook (UINavigationController) lives in this group —
+// it always exists. The class-specific hooks below get their own groups so they
+// can be activated conditionally; Orion fatalErrors if it activates a ClassHook
+// whose target class is missing (e.g. Spotify 9.1.58 removed ProfileSettingsSection
+// and RootSettingsViewController). Activation is guarded in
+// activateUniversalSettingsIntegration().
 struct UniversalSettingsIntegrationGroup: HookGroup { }
+struct ProfileSettingsSectionGroup: HookGroup { }
+struct SettingsViewControllerGroup: HookGroup { }
+struct RootSettingsViewControllerGroup: HookGroup { }
+
+// Activates the settings-menu integration, skipping hooks whose target class does
+// not exist in the running Spotify build (prevents the Orion fatalError crash).
+func activateUniversalSettingsIntegration() {
+    // Universal fallback — UINavigationController is always present.
+    UniversalSettingsIntegrationGroup().activate()
+
+    if NSClassFromString("ProfileSettingsSection") != nil {
+        ProfileSettingsSectionGroup().activate()
+    }
+    if NSClassFromString("SettingsViewController") != nil {
+        SettingsViewControllerGroup().activate()
+    }
+    if NSClassFromString("RootSettingsViewController") != nil {
+        RootSettingsViewControllerGroup().activate()
+    }
+}
 
 // MARK: - Primary: ProfileSettingsSection hook for settings menu row
 class UniversalProfileSettingsSectionHook: ClassHook<NSObject> {
-    typealias Group = UniversalSettingsIntegrationGroup
+    typealias Group = ProfileSettingsSectionGroup
     static let targetName = "ProfileSettingsSection"
     
     func numberOfRows() -> Int {
@@ -169,7 +195,7 @@ func injectEeveeButton(into target: UIViewController) {
 
 // MARK: - Fallback: Hook SettingsViewController directly (New UI)
 class SettingsViewControllerHook: ClassHook<UIViewController> {
-    typealias Group = UniversalSettingsIntegrationGroup
+    typealias Group = SettingsViewControllerGroup
     static let targetName = "SettingsViewController"
 
     func viewDidLoad() {
@@ -185,7 +211,7 @@ class SettingsViewControllerHook: ClassHook<UIViewController> {
 
 // MARK: - Fallback: Hook RootSettingsViewController directly
 class RootSettingsViewControllerHook: ClassHook<UIViewController> {
-    typealias Group = UniversalSettingsIntegrationGroup
+    typealias Group = RootSettingsViewControllerGroup
     static let targetName = "RootSettingsViewController"
 
     func viewDidLoad() {

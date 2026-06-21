@@ -10,25 +10,44 @@ class BundleHelper {
     private var enBundle: Bundle?
     
     static let shared = BundleHelper()
-    
-    private init() {
-        // Try locating in main bundle first
-        if let path = Bundle.main.path(forResource: bundleName, ofType: "bundle"),
+
+    // Find EeveeSpotify.bundle across the ways the tweak gets installed:
+    //   1) inside the app bundle (injected IPA: cyan/ivinject copy it to the .app)
+    //   2) next to the loaded tweak dylib (LiveContainer Tweaks folder / loose dylib)
+    //   3) the jailbreak filesystem path
+    // Without this the localized strings fall back to raw keys (e.g. "clear_debug_log").
+    private static func locateBundle(named name: String) -> Bundle? {
+        // 1. Inside the running app bundle.
+        if let path = Bundle.main.path(forResource: name, ofType: "bundle"),
            let b = Bundle(path: path) {
-            self.bundle = b
-            NSLog("[EeveeSpotify] Loaded bundle from main bundle: \(path)")
-        } 
-        // If not found, try locating in file system (jailbreak path)
-        else {
-            let jbPath = jbRootPath("/Library/Application Support/\(bundleName).bundle")
-            if let b = Bundle(path: jbPath) {
-                self.bundle = b
-                NSLog("[EeveeSpotify] Loaded bundle from filesystem: \(jbPath)")
-            } else {
-                NSLog("[EeveeSpotify] ERROR: Could not find EeveeSpotify.bundle!")
-                self.bundle = nil
+            NSLog("[EeveeSpotify] Loaded bundle from app: \(path)")
+            return b
+        }
+
+        // 2. Same directory as this dylib (#dsohandle -> dladdr -> dli_fname).
+        var info = dl_info()
+        if dladdr(#dsohandle, &info) != 0, let fname = info.dli_fname {
+            let dylibDir = (String(cString: fname) as NSString).deletingLastPathComponent
+            let path = (dylibDir as NSString).appendingPathComponent("\(name).bundle")
+            if let b = Bundle(path: path) {
+                NSLog("[EeveeSpotify] Loaded bundle next to dylib: \(path)")
+                return b
             }
         }
+
+        // 3. Jailbreak filesystem path.
+        let jbPath = jbRootPath("/Library/Application Support/\(name).bundle")
+        if let b = Bundle(path: jbPath) {
+            NSLog("[EeveeSpotify] Loaded bundle from filesystem: \(jbPath)")
+            return b
+        }
+
+        NSLog("[EeveeSpotify] ERROR: Could not find \(name).bundle!")
+        return nil
+    }
+    
+    private init() {
+        self.bundle = BundleHelper.locateBundle(named: bundleName)
         
         // Load English localization if available
         if let b = self.bundle, let enPath = b.path(forResource: "en", ofType: "lproj"),
