@@ -26,3 +26,17 @@ copy-swiftprotobuf:
 	ar -x org.swift.protobuf.swiftprotobuf_1.26.0_iphoneos-arm.deb ;\
 	tar -xvf data.tar.lzma ;\
 	cp -r Library/Frameworks/SwiftProtobuf.framework "${THEOS}/lib" ;\
+
+# After each `make package`, also drop the tweak's raw .dylib (extracted from the
+# just-built .deb) next to it in packages/, named after the .deb.
+after-package::
+	@deb=$$(ls -t packages/*.deb 2>/dev/null | head -1) ;\
+	if [ -n "$$deb" ] && [ -f "$$deb" ]; then \
+		out="$${deb%.deb}.dylib" ;\
+		tmp=$$(mktemp -d) ;\
+		( cd "$$tmp" && ar -x "$(CURDIR)/$$deb" && { tar --lzma -xf data.tar.* 2>/dev/null || tar -xf data.tar.* ; } ) ;\
+		dy=$$(find "$$tmp" -name 'EeveeSpotify.dylib' -path '*DynamicLibraries*' | head -1) ;\
+		if [ -n "$$dy" ]; then cp "$$dy" "$$out" ; echo "==> Extracted dylib -> $$out" ;\
+		else echo "warning: EeveeSpotify.dylib not found inside $$deb" ; fi ;\
+		rm -rf "$$tmp" ;\
+	fi

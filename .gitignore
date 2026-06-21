@@ -25,3 +25,5 @@ Debs/
 .website/
 .github/copilot-instructions.md
 build_log.txt
+dist/
+packages/
