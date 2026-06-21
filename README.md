@@ -1,96 +1,86 @@
 ![Banner](Images/banner.png?)
 
-# EeveeSpotify
+# EeveeSpotifyNext
 
-**Updated and maintained by Skye - Current Version 9.1.28**
+**Spotify Premium + custom lyrics tweak for iOS — maintained for Spotify 9.1.x (tested on 9.1.58).**
 
-**Last updated 3/12/26**
-
-This tweak makes Spotify think you have a Premium subscription, granting free listening, just like Spotilife, and provides some additional features like custom lyrics.
+This tweak makes Spotify think you have a Premium subscription, granting free listening just like Spotilife, and adds extra features such as custom lyrics.
 
 > [!NOTE]
-> The original EeveeSpotify repository was disabled due to a [DMCA takedown](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md). This repository will not contain IPA packages in the repo itself.
+> The original EeveeSpotify repository was disabled by a [DMCA takedown](https://github.com/github/dmca/blob/master/2025/08/2025-08-14-spotify.md), so this repository does **not** ship IPA packages. You build your own from a decrypted Spotify IPA (see below).
 
-## Custom Lyrics Support
+## Supported version
 
-**Spotify 9.1.28** - Full custom lyrics functionality is available with the following provider:
+- **Spotify 9.1.x** (tested on **9.1.58**, iOS 26).
 
-- **Musixmatch** (Currently enabled)
+On 9.1.x Spotify moved account/plan delivery to a UCS product-state push and pam-view-service Connect-RPC, so this fork restores Premium through those channels (the old request interception no longer applies on these versions). What works:
+
+- Premium unlock (free listening, on-demand, no ads) from the first launch
+- "Your plan" card and the **Premium** tab show your EeveeSpotify plan instead of upsells
+- Custom lyrics
+
+## Custom lyrics
+
+Lyrics are provided by **Musixmatch** (time-synced). To use it, download Musixmatch from the App Store, sign up, go to **Settings → Get help → Copy debug info**, and paste it into the EeveeSpotify token prompt. You can also extract the token via MITM.
+
+> Genius, LRCLIB and PetitLyrics providers exist in the code but are not the default on 9.1.x.
+
+If a song can't be found or the lyrics can't be processed, you'll see "Couldn't load the lyrics for this song."
+
+## Restrictions (server-sided — will **never** work)
+
+- Very High audio quality
+- Native playlist downloading (podcast episodes and local playlists do work)
+- Jam (hosting/joining remotely)
+- AI DJ / AI Playlist
+- Spotify Connect (acts as a remote control / behaves as Free while connected)
+
+## How to build the IPA (GitHub Actions)
 
 > [!NOTE]
-> Other providers (Genius, LRCLIB, PetitLyrics) are available in the code but disabled in build.*
-
-## How to build an EeveeSpotify IPA using Github actions
-> [!NOTE]
-> If this your first time, complete following steps before starting:
->
-> 1. Fork this repository using the fork button on the top right
-> 2. On your forked repository, go to **Repository Settings** > **Actions**, enable **Read and Write** permissions.
+> First time only:
+> 1. Fork this repository.
+> 2. On your fork: **Settings → Actions** → enable **Read and write permissions**.
 
 <details>
-  <summary>How to build the EeveeSpotify IPA</summary>
+  <summary>Steps</summary>
   <ol>
-    <li>Click on <strong>Sync fork</strong>, and if your branch is out-of-date, click on <strong>Update branch</strong>.</li>
-    <li>Navigate to the <strong>Actions tab</strong> in your forked repository and select <strong>Create IPA Packages</strong> if you're on desktop/widescreen. Tap on <strong>All Workflows</strong> and select <strong>Create IPA Packages</strong> if you're on mobile/portrait.</li>
-    <li>Click the <strong>Run workflow</strong> button located on the right side.</li>
-    <li>Prepare a decrypted .ipa file <em>(we cannot provide this due to legal reasons)</em>, then upload it to a file provider (e.g., filebin.net, filemail.com, or Dropbox is recommended). Paste the URL of the decrypted IPA file in the provided field.</li>
-    <li><strong>NOTE:</strong> Make sure to provide a direct download link to the file, not a link to a webpage. Otherwise, the process will fail.</li>
-    <li>Go to the releases page of the EeveeSpotify repository (<strong>NOT</strong> the fork). Hold and copy the link of the .deb file, which corresponds to your phone's architecture.</li>
-    <li>Make sure all inputs are correct, then click <strong>Run workflow</strong> to start the process.</li>
-    <li>Wait for the build to finish. You can download the EeveeSpotify IPA from the releases section of your forked repo. (If you can't find the releases section, go to your forked repo and add /releases to the URL, i.e., github.com/user/EeveeSpotifyReborn/releases.)</li>
+    <li>If your fork is out of date, click <strong>Sync fork → Update branch</strong>.</li>
+    <li>Go to the <strong>Actions</strong> tab → <strong>Create IPA Packages</strong> → <strong>Run workflow</strong>.</li>
+    <li>Prepare a decrypted <code>.ipa</code> <em>(we cannot provide it for legal reasons)</em> and upload it to a file host (filebin.net, filemail.com, Dropbox, …). Paste the <strong>direct download link</strong> (not a webpage) into the field.</li>
+    <li>Run the workflow and wait. Download the built IPA from your fork's <strong>Releases</strong>.</li>
   </ol>
 </details>
 
-## The History
+## How to build locally (macOS)
 
-In January 2024, Spotilife, the only tweak to get Spotify Premium, stopped working on new Spotify versions. I decompiled Spotilife, reverse-engineered Spotify, intercepted requests, etc., and created this tweak.
+Requires [Theos](https://theos.dev). The tweak depends on SwiftProtobuf; if your local Swift is newer than the prebuilt one, build it from source once:
 
-## Restrictions
+```bash
+export THEOS=~/theos
+./setup-local-build.sh        # one-time: builds & installs SwiftProtobuf for your toolchain
+make package                  # -> packages/com.eevee.spotify_*_iphoneos-arm.deb (+ extracted .dylib)
+```
 
-Please refrain from opening issues about the following features, as they are server-sided and will **NEVER** work:
+Helper scripts:
 
-- Very High audio quality
-- Native playlist downloading (you can download podcast episodes though)
-- Jam (hosting a Spotify Jam and joining it remotely requires Premium; only joining in-person works)
-- AI DJ/Playlist
-- Spotify Connect (When using Spotify Connect, the device will act as a remote control and stream directly to the connected device. This is a server-sided limitation and is beyond the control of EeveeSpotify, so it will behave as if you have a Free subscription while using this feature.)
-
-
-## Lyrics Support
-
-EeveeSpotify replaces Spotify monthly limited lyrics with one of the following four lyrics providers:
-
-- Genius: Offers the best quality lyrics, provides the most songs, and updates lyrics the fastest. Does not and will never be time-synced.
-
-- LRCLIB: The most open service, offering time-synced lyrics. However, it lacks lyrics for many songs.
-
-- Musixmatch: The service Spotify uses. Provides time-synced lyrics for many songs, but you'll need a user token to use this source. To obtain the token, download Musixmatch from the App Store, sign up, then go to Settings > Get help > Copy debug info, and paste it into EeveeSpotify alert. You can also extract the token using MITM.
-
-- PetitLyrics: Offers plenty of time-synced Japanese and some international lyrics.
-
-If the tweak is unable to find a song or process the lyrics, you'll see a "Couldn't load the lyrics for this song" message. The lyrics might be wrong for some songs when using Genius due to how the tweak searches songs. While I've made it work in most cases, kindly refrain from opening issues about it.
-
-## How It Works
-
-EeveeSpotify intercepts Spotify requests to load user data, deserializes it, and modifies the parameters in real-time. This method works incredibly stable across supported Spotify versions.
-
-The tweak also sets `trackRowsEnabled` to `true`, allowing you to see track rows and liked tracks on artist pages just like with Premium.
+- `./build-ipa.sh <decrypted-spotify.ipa>` — build the `.deb` and inject it into a copy of your IPA (via [cyan](https://github.com/asdfzxcvbn/pyzule-rw)); output in `dist/`.
+- `./build-lc.sh` — assemble a LiveContainer Tweaks folder (`dist/lc-spot/` + zip).
 
 ## Installation
 
-For sideloaded IPAs, we recommend using **Sideloadly** or certificate-based signing tools like **ksign** for best compatibility.
+Sideload the built IPA with **Sideloadly**, **ksign**, **AltStore**, or run it in **LiveContainer**. To open Spotify links in the sideloaded app, use [OpenSpotifySafariExtension](https://github.com/BillyCurtis/OpenSpotifySafariExtension) (activate it in Settings → Safari → Extensions).
 
-To open Spotify links in sideloaded app, use [OpenSpotifySafariExtension](https://github.com/BillyCurtis/OpenSpotifySafariExtension). Remember to activate it and allow access in Settings > Safari > Extensions.
+## How it works
+
+EeveeSpotify intercepts Spotify's account/configuration data and modifies it in real time so the app believes you have Premium. On 9.1.x this happens via the product-state push (`productStateUpdated`) and a `URLProtocol` that rewrites the pam-view-service plan responses.
+
+## Credits
+
+Based on the original [EeveeSpotify](https://github.com/whoeevee/EeveeSpotify) by **whoeevee/Eevee** and the Revived fork by **Meeep1/Skye**, plus all the localization contributors. 9.1.x compatibility work in this fork.
 
 ## Donations
 
-USDC (ETH)
+USDC (ETH): `0x2Bf9F27FBa0eD37940819907a2e732523d4523C1`
 
-0x2Bf9F27FBa0eD37940819907a2e732523d4523C1
-
-BTC
-
-3NB6WhB8Krtncq6EnGCFoe35JKh9B1n6eC
-
-
-
+BTC: `3NB6WhB8Krtncq6EnGCFoe35JKh9B1n6eC`
