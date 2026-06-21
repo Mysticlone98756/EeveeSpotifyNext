@@ -27,3 +27,5 @@ Debs/
 build_log.txt
 dist/
 packages/
+
+.claude

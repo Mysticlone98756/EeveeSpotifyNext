@@ -18,6 +18,41 @@ private let ablyActionNames: [Int: String] = [
     14: "presence", 15: "message", 16: "sync", 17: "auth"
 ]
 
+// Premium overrides applied to the UCS product-state dictionary delivered via
+// SPTAuthSessionImplementation.productStateUpdated: on Spotify 9.1.x. Values are
+// strings to match the product-state format. Mirrors DynamicPremium's attribute
+// patching for the keys that gate Premium behaviour (catalogue/type/license/ads).
+let premiumProductStateOverrides: [String: String] = [
+    "catalogue": "premium",
+    "type": "premium",
+    "name": "Spotify Premium",
+    "player-license": "premium",
+    "player-license-v2": "premium",
+    "financial-product": "pr:premium,tc:0",
+    "ads": "0",
+    "on-demand": "1",
+    "offline": "1",
+    "streaming": "1",
+    "shuffle": "1",
+    "pick-and-shuffle": "1",
+    "high-bitrate": "1",
+    "nft-disabled": "1",
+    "unrestricted": "1",
+    "shuffle-eligible": "1",
+    "can_use_superbird": "1",
+    "is-eligible-premium-unboxing": "1",
+    "social-session": "1",
+    "social-session-free-tier": "0",
+    "is-mobile-only-tier": "0",
+    "premium-mini": "0",
+    "streaming-rules": "",
+    "ab-ad-player-targeting": "0",
+    "ad-formats-preroll-video": "0",
+    "ad-session-persistence": "0",
+    "allow-advertising-id-transmission": "0",
+    "restrict-advertising-id-transmission": "1",
+]
+
 // MARK: - SPTAuthSessionImplementation — Core Session Hooks
 
 class SPTAuthSessionHook: ClassHook<NSObject> {
@@ -67,7 +102,11 @@ class SPTAuthSessionHook: ClassHook<NSObject> {
 
     func destroy() {
         let elapsed = Int(Date().timeIntervalSince(tweakInitTime))
-        if SPTAuthSessionHook.allowLogout {
+        // On 9.1.x, blocking destroy fights Spotify's normal session refresh and leads
+        // to app restarts. Allow it — premium is re-applied via productStateUpdated on
+        // each re-auth, and credentials are kept (forgetStoredCredentials stays blocked).
+        if SPTAuthSessionHook.allowLogout || EeveeSpotify.hookTarget == .v91 {
+            writeDebugLog("[AUTH] Allowed session destroy at \(elapsed)s\(EeveeSpotify.hookTarget == .v91 ? " (v91 relaxed)" : "")")
             orig.destroy()
         } else {
             let trace = Thread.callStackSymbols.prefix(15).joined(separator: "\n")
@@ -77,8 +116,23 @@ class SPTAuthSessionHook: ClassHook<NSObject> {
 
     func productStateUpdated(_ state: AnyObject) {
         let elapsed = Int(Date().timeIntervalSince(tweakInitTime))
-        writeDebugLog("[AUTH] productStateUpdated at \(elapsed)s -- \(state)")
-        orig.productStateUpdated(state)
+
+        // Spotify 9.1.x delivers the account/product state through this UCS push
+        // (not the HTTP customize endpoint the request hooks modify), so we rewrite
+        // the free-tier attributes to premium right here.
+        var passed: AnyObject = state
+        if UserDefaults.patchType.isPatching, let dict = state as? NSDictionary {
+            let m = NSMutableDictionary(dictionary: dict)
+            for (key, value) in premiumProductStateOverrides {
+                m[key] = value
+            }
+            passed = m
+            writeDebugLog("[AUTH] productState PATCHED at \(elapsed)s -> type=\(m["type"] ?? "?") catalogue=\(m["catalogue"] ?? "?") player-license=\(m["player-license"] ?? "?") ads=\(m["ads"] ?? "?")")
+        } else {
+            writeDebugLog("[AUTH] productStateUpdated at \(elapsed)s (not patched; isDict=\(state is NSDictionary), patchType=\(UserDefaults.patchType))")
+        }
+
+        orig.productStateUpdated(passed)
     }
 
     func tryReconnect(_ arg1: AnyObject, toAP arg2: AnyObject) {
@@ -369,6 +423,14 @@ class URLSessionTaskResumeHook: ClassHook<NSObject> {
                 if elapsed > 30 && path.contains("DeleteToken") {
                     writeDebugLog("[NET] Cancelled DeleteToken at \(elapsedInt)s")
                     task.cancel()
+                    return
+                }
+                // On 9.1.x these re-fetches are part of Spotify's normal session/config
+                // refresh; cancelling them triggers session-destroy + restart loops, and
+                // premium is applied via productStateUpdated regardless. Only DeleteToken
+                // (above) is still cancelled. Skip the rest on v91.
+                if EeveeSpotify.hookTarget == .v91 {
+                    orig.resume()
                     return
                 }
                 if elapsed > 30 && path.contains("signup/public") {

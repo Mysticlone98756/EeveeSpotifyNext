@@ -68,6 +68,14 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
             return true
         }
 
+        // On 9.1.x premium is applied via the product-state push (productStateUpdated),
+        // not via customize/bootstrap. Blocking these here only fights Spotify's normal
+        // session/config refresh and triggers session-destroy + app restart loops, so
+        // skip the session/premium blocks on v91 (ad blocking above still applies).
+        if EeveeSpotify.hookTarget == .v91 {
+            return false
+        }
+
         // Only block these after startup (30s) to allow initial login/initialization
         if elapsed > 30 {
             return url.isAccountValidate || url.isOndemandSelector
@@ -245,6 +253,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
             }
             
             if url.isCustomize {
+                writeDebugLog("[DL] MODIFYING customize (\(buffer.count) bytes), patchType=\(UserDefaults.patchType)")
                 var customizeMessage = try CustomizeMessage(serializedBytes: buffer)
                 modifyRemoteConfiguration(&customizeMessage.response)
                 let modifiedData = try customizeMessage.serializedData()

@@ -65,13 +65,17 @@ class SpotifySessionDelegateBootstrapHook: ClassHook<NSObject>, SpotifySessionDe
             
             do {
                 var bootstrapMessage = try BootstrapMessage(serializedBytes: buffer)
-                
+
+                writeDebugLog("[BOOTSTRAP] parsed OK, account type=\(bootstrapMessage.attributes["type"]?.stringValue ?? "nil"), patchType=\(UserDefaults.patchType)")
+
                 if UserDefaults.patchType == .notSet {
                     if bootstrapMessage.attributes["type"]?.stringValue == "premium" {
+                        writeDebugLog("[BOOTSTRAP] account already premium -> disabling patching")
                         UserDefaults.patchType = .disabled
                         showHavePremiumPopUp()
                     }
                     else {
+                        writeDebugLog("[BOOTSTRAP] free account -> enabling patching (.requests)")
                         UserDefaults.patchType = .requests
                         // Dispatch to main thread — calling activate() (method swizzling) from
                         // a URLSession delegate background thread while inside the method being

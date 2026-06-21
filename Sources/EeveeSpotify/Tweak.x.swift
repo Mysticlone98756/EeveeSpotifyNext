@@ -14,10 +14,9 @@ private let eeveeDebugLogMaxBytes: UInt64 = 5 * 1024 * 1024 // 5 MB
 private let eeveeDebugLogLock = NSLock()
 
 func writeDebugLog(_ message: String) {
-    // Always mirror to the system console (cheap, bounded by os_log).
-    NSLog("[EeveeSpotify] %@", message)
-
     guard eeveeDebugLoggingEnabled else { return }
+
+    NSLog("[EeveeSpotify] %@", message)
 
     let logPath = NSTemporaryDirectory() + "eeveespotify_debug.log"
     let timestamp = Date().description
@@ -164,11 +163,26 @@ struct EeveeSpotify: Tweak {
 
         // For 9.1.x, activate premium patching and lyrics
         if EeveeSpotify.hookTarget == .v91 {
-            
+
+            // On 9.1.x the bootstrap auto-detection that used to set the patch type is
+            // dead (Spotify no longer routes those requests through SPTDataLoaderService),
+            // so a fresh install stays at .notSet and never patches until the user toggles
+            // "Do Not Patch Premium" by hand. Default to patching so Premium works on the
+            // very first launch. (Users with a real Premium account can still turn it off.)
+            if UserDefaults.patchType == .notSet {
+                UserDefaults.patchType = .requests
+                writeDebugLog("[INIT] v91: patchType was .notSet -> defaulting to .requests")
+            }
+
             // Premium patching
             if UserDefaults.patchType.isPatching {
                 BasePremiumPatchingGroup().activate()
             }
+
+            // Intercept pam-view-service plan/premium views (9.1.x loads them via
+            // async URLSession, bypassing the request hooks) to show the EeveeSpotify
+            // plan in the Premium tab / "your plan" card.
+            registerPlanInterceptor()
             
             let lyricsEnabled = UserDefaults.lyricsSource.isReplacingLyrics
             
