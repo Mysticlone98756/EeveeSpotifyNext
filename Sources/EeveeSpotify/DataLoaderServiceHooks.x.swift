@@ -8,14 +8,42 @@ public var spotifyAccessToken: String?
 func DataLoaderServiceHooks_startCapturing() {
 }
 
+// Thread-safe storage for the modified `v1/customize` response and the set of
+// tasks whose 304 we've already handled. Both are touched from URLSession
+// delegate callbacks that can run concurrently, so every access is locked.
+// Kept out of the Orion ClassHook because Orion forbids static methods there.
+final class CustomizeStateStore {
+    static let shared = CustomizeStateStore()
+
+    private let lock = NSLock()
+    private var cachedData: Data?
+    private var handledTasks = Set<Int>()
+
+    private init() {}
+
+    var cachedCustomizeData: Data? {
+        lock.lock(); defer { lock.unlock() }
+        return cachedData
+    }
+
+    func setCachedCustomizeData(_ data: Data) {
+        lock.lock(); defer { lock.unlock() }
+        cachedData = data
+    }
+
+    func markHandledCustomizeTask(_ id: Int) {
+        lock.lock(); defer { lock.unlock() }
+        handledTasks.insert(id)
+    }
+
+    func consumeHandledCustomizeTask(_ id: Int) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return handledTasks.remove(id) != nil
+    }
+}
+
 class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
     static let targetName = "SPTDataLoaderService"
-
-    // orion:new
-    static var cachedCustomizeData: Data?
-
-    // orion:new
-    static var handledCustomizeTasks = Set<Int>()
 
     // orion:new
     func shouldBlock(_ url: URL) -> Bool {
@@ -96,8 +124,6 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
         } else if url.isSessionInvalidation || url.path.contains("session/purge") || url.path.contains("token/revoke") {
             // Return synthetic OK to prevent internal logout triggers
             respondWithCustomData("{\"status\":\"OK\"}".data(using: .utf8)!, task: task, session: session)
-        } else if url.path.contains("signup/public") {
-            respondWithCustomData("{\"status\":\"OK\"}".data(using: .utf8)!, task: task, session: session)
         } else if url.path.contains("apresolve") {
             respondWithCustomData("{\"status\":\"OK\"}".data(using: .utf8)!, task: task, session: session)
         } else if url.path.contains("pses/screenconfig") {
@@ -114,7 +140,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
             respondWithCustomData(Data(), task: task, session: session)
         } else if url.path.contains("v1/customize") {
             // Serve the cached modified customize data for periodic re-fetches
-            if let cached = SPTDataLoaderServiceHook.cachedCustomizeData {
+            if let cached = CustomizeStateStore.shared.cachedCustomizeData {
                 respondWithCustomData(cached, task: task, session: session)
             } else {
                 respondWithCustomData(Data(), task: task, session: session)
@@ -148,7 +174,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
         }
 
         // Handle customize 304 that was already served in didReceiveResponse
-        if SPTDataLoaderServiceHook.handledCustomizeTasks.remove(task.taskIdentifier) != nil {
+        if CustomizeStateStore.shared.consumeHandledCustomizeTask(task.taskIdentifier) {
             orig.URLSession(session, task: task, didCompleteWithError: nil)
             return
         }
@@ -160,7 +186,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
         
         guard let buffer = URLSessionHelper.shared.obtainData(for: url) else {
             // Customize 304 fallback: serve cached modified data when no buffer available
-            if url.isCustomize, let cached = SPTDataLoaderServiceHook.cachedCustomizeData {
+            if url.isCustomize, let cached = CustomizeStateStore.shared.cachedCustomizeData {
                 respondWithCustomData(cached, task: task, session: session)
                 orig.URLSession(session, task: task, didCompleteWithError: nil)
             }
@@ -222,7 +248,7 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
                 var customizeMessage = try CustomizeMessage(serializedBytes: buffer)
                 modifyRemoteConfiguration(&customizeMessage.response)
                 let modifiedData = try customizeMessage.serializedData()
-                SPTDataLoaderServiceHook.cachedCustomizeData = modifiedData
+                CustomizeStateStore.shared.setCachedCustomizeData(modifiedData)
                 respondWithCustomData(modifiedData, task: task, session: session)
                 orig.URLSession(session, task: task, didCompleteWithError: nil)
                 return
@@ -256,11 +282,11 @@ class SPTDataLoaderServiceHook: ClassHook<NSObject>, SpotifySessionDelegate {
     ) {
         // Handle customize 304 — prevent free-account data leaking from URLSession cache
         if let url = task.currentRequest?.url, url.isCustomize, response.statusCode == 304 {
-            if let cached = SPTDataLoaderServiceHook.cachedCustomizeData {
+            if let cached = CustomizeStateStore.shared.cachedCustomizeData {
                 let fakeResponse = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "2.0", headerFields: [:])!
                 orig.URLSession(session, dataTask: task, didReceiveResponse: fakeResponse, completionHandler: handler)
                 respondWithCustomData(cached, task: task, session: session)
-                SPTDataLoaderServiceHook.handledCustomizeTasks.insert(task.taskIdentifier)
+                CustomizeStateStore.shared.markHandledCustomizeTask(task.taskIdentifier)
                 return
             }
         }

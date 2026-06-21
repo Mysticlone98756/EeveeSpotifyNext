@@ -58,13 +58,22 @@ class MusixmatchLyricsRepository: LyricsRepository {
         }
 
         task.resume()
-        semaphore.wait()
+        // Bounded wait — this runs synchronously on a delegate/global queue; an
+        // unbounded wait would hang that thread if the request never returns.
+        if semaphore.wait(timeout: .now() + 10) == .timedOut {
+            task.cancel()
+            throw LyricsError.unknownError
+        }
 
         if let error = error {
             throw error
         }
 
-        return data!
+        guard let data = data else {
+            throw LyricsError.unknownError
+        }
+
+        return data
     }
 
     //
@@ -132,8 +141,10 @@ class MusixmatchLyricsRepository: LyricsRepository {
         }
 
         return translations.reduce(into: [:]) { dictionary, translation in
-            dictionary[translation["subtitle_matched_line"] as! String] =
-                translation["description"] as? String
+            guard let matchedLine = translation["subtitle_matched_line"] as? String else {
+                return
+            }
+            dictionary[matchedLine] = translation["description"] as? String
         }
     }
 
@@ -177,7 +188,9 @@ class MusixmatchLyricsRepository: LyricsRepository {
             let subtitleBody = subtitle["subtitle_body"] as? String,
             let subtitles = try? JSONDecoder().decode(
                 [MusixmatchSubtitle].self, from: subtitleBody.data(using: .utf8)!
-            )
+            ),
+            // Guard against an empty subtitle list — `subtitles.last!` below would crash.
+            !subtitles.isEmpty
         {
 
             let romanizationLanguage = "r\(subtitleLanguage.prefix(1))"

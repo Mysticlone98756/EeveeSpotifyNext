@@ -45,13 +45,20 @@ class LrclibLyricsRepository: LyricsRepository {
         }
 
         task.resume()
-        semaphore.wait()
+        if semaphore.wait(timeout: .now() + 10) == .timedOut {
+            task.cancel()
+            throw LyricsError.unknownError
+        }
 
         if let error = error {
             throw error
         }
 
-        return data!
+        guard let data = data else {
+            throw LyricsError.unknownError
+        }
+
+        return data
     }
     
     private func getSong(trackName: String, artistName: String) throws -> LrclibSong {
@@ -80,10 +87,18 @@ class LrclibLyricsRepository: LyricsRepository {
                 }
             }
             
-            let minute = Int(captures["minute"]!)!
-            let seconds = Float(captures["seconds"]!)!
-            let content = captures["content"]!
-            
+            // The minute group is `\d*` (can be empty) so default it to 0; if the
+            // seconds/content captures are somehow malformed, skip the line instead
+            // of force-unwrapping into a crash.
+            guard
+                let secondsString = captures["seconds"],
+                let seconds = Float(secondsString),
+                let content = captures["content"]
+            else {
+                return nil
+            }
+            let minute = Int(captures["minute"] ?? "") ?? 0
+
             return LyricsLineDto(
                 content: content.lyricsNoteIfEmpty,
                 offsetMs: Int(minute * 60 * 1000 + Int(seconds * 1000))

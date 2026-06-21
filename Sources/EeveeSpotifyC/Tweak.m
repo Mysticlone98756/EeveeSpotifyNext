@@ -1,7 +1,13 @@
 #import <Orion/Orion.h>
 #import <Foundation/Foundation.h>
 
+// Keep in sync with eeveeDebugLoggingEnabled in Tweak.x.swift — off in production.
+static const BOOL eeveeDebugLoggingEnabled = NO;
+
 static void writeDebugLog(NSString *message) {
+    if (!eeveeDebugLoggingEnabled) {
+        return;
+    }
     NSString *logPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"eeveespotify_debug.log"];
     NSString *timestamp = [[NSDate date] description];
     NSString *logMessage = [NSString stringWithFormat:@"[%@] %@\n", timestamp, message];

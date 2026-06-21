@@ -207,12 +207,16 @@ class OauthAccessTokenBridgeHook: ClassHook<NSObject> {
 
     // orion:new
     func startExpiryExtender() {
-        let weak = target
-        // Extend the ivar every 60 seconds
+        // Capture the bridge WEAKLY. The previous implementation captured `target`
+        // strongly inside a `while true` loop, which (a) retained the bridge forever
+        // and (b) spawned a permanent background thread per init — threads and memory
+        // accumulated over a long session. With a weak capture the loop exits as soon
+        // as the bridge is deallocated, so the thread terminates with its instance.
+        weak var weakTarget = target as AnyObject
         DispatchQueue.global(qos: .utility).async {
             while true {
                 Thread.sleep(forTimeInterval: 60)
-                guard let obj = weak as? NSObject else { break }
+                guard let obj = weakTarget as? NSObject else { break }
                 let cls: AnyClass = type(of: obj)
                 if let ivar = class_getInstanceVariable(cls, "expiresAt") {
                     let farFuture = Date(timeIntervalSinceNow: 365 * 24 * 60 * 60)

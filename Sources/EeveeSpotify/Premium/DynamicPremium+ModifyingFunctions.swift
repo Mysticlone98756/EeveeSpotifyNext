@@ -4,8 +4,11 @@ import UIKit
 func modifyRemoteConfiguration(_ configuration: inout UcsResponse) {
     modifyAttributes(&configuration.attributes.accountAttributes)
     
-    if UserDefaults.overwriteConfiguration {
-        configuration.resolve.configuration = try! BundleHelper.shared.resolveConfiguration()
+    // Fall back to per-value patching if the bundled configuration can't be loaded
+    // (e.g. EeveeSpotify.bundle missing) instead of crashing with try!.
+    if UserDefaults.overwriteConfiguration,
+       let resolved = try? BundleHelper.shared.resolveConfiguration() {
+        configuration.resolve.configuration = resolved
     }
     else {
         modifyAssignedValues(&configuration.assignedValues)

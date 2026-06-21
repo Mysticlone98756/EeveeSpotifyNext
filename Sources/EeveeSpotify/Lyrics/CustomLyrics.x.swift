@@ -144,11 +144,9 @@ private func loadCustomLyricsForCurrentTrack() throws -> Lyrics {
         }
     
     let trackTitle = track.trackTitle()
-    let artistName = EeveeSpotify.hookTarget == .lastAvailableiOS14
-        ? track.artistName()
-        : track.artistName()
-    
-    
+    let artistName = track.artistName()
+
+
     let searchQuery = LyricsSearchQuery(
         title: trackTitle,
         primaryArtist: artistName,

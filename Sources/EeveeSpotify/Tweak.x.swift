@@ -2,16 +2,38 @@ import Orion
 import EeveeSpotifyC
 import UIKit
 
+// Master switch for verbose file logging. Disabled in production to avoid
+// unbounded growth of the debug log and per-call FileHandle churn on hot paths
+// (SessionProtection logs on every blocked event).
+let eeveeDebugLoggingEnabled = false
+
+// Cap the on-disk log so a long session can't fill the container.
+private let eeveeDebugLogMaxBytes: UInt64 = 5 * 1024 * 1024 // 5 MB
+
+// Serialize file writes — writeDebugLog is called from many threads concurrently.
+private let eeveeDebugLogLock = NSLock()
+
 func writeDebugLog(_ message: String) {
-    // Log to system console
+    // Always mirror to the system console (cheap, bounded by os_log).
     NSLog("[EeveeSpotify] %@", message)
+
+    guard eeveeDebugLoggingEnabled else { return }
 
     let logPath = NSTemporaryDirectory() + "eeveespotify_debug.log"
     let timestamp = Date().description
     let logMessage = "[\(timestamp)] \(message)\n"
-    
+
+    eeveeDebugLogLock.lock()
+    defer { eeveeDebugLogLock.unlock() }
+
     if FileManager.default.fileExists(atPath: logPath) {
         if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+            // Truncate if the log has grown past the cap.
+            let attrs = try? FileManager.default.attributesOfItem(atPath: logPath)
+            let size = (attrs?[.size] as? NSNumber)?.uint64Value ?? 0
+            if size > eeveeDebugLogMaxBytes {
+                fileHandle.truncateFile(atOffset: 0)
+            }
             fileHandle.seekToEndOfFile()
             if let data = logMessage.data(using: .utf8) {
                 fileHandle.write(data)

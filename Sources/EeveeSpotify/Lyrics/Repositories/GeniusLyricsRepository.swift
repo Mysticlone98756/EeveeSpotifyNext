@@ -43,13 +43,19 @@ class GeniusLyricsRepository: LyricsRepository {
         }
 
         task.resume()
-        semaphore.wait()
+        if semaphore.wait(timeout: .now() + 10) == .timedOut {
+            task.cancel()
+            throw LyricsError.unknownError
+        }
 
         if let error = error {
             throw error
         }
 
-        guard let rootResponse = try? jsonDecoder.decode(GeniusRootResponse.self, from: data!) else {
+        guard
+            let data = data,
+            let rootResponse = try? jsonDecoder.decode(GeniusRootResponse.self, from: data)
+        else {
             throw LyricsError.decodingError
         }
         return rootResponse.response

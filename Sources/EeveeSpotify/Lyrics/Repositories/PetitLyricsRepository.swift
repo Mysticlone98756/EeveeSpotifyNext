@@ -35,13 +35,19 @@ class PetitLyricsRepository: LyricsRepository {
         }
 
         task.resume()
-        semaphore.wait()
+        if semaphore.wait(timeout: .now() + 10) == .timedOut {
+            task.cancel()
+            throw LyricsError.unknownError
+        }
 
         if let error = error {
             throw error
         }
-        
-        guard let response = try? XMLDecoder().decode(PetitResponse.self, from: data!) else {
+
+        guard
+            let data = data,
+            let response = try? XMLDecoder().decode(PetitResponse.self, from: data)
+        else {
             throw LyricsError.decodingError
         }
 
@@ -110,7 +116,9 @@ class PetitLyricsRepository: LyricsRepository {
                 lines: lyrics.lines.map {
                     LyricsLineDto(
                         content: $0.linestring,
-                        offsetMs: $0.words.first!.starttime
+                        // A line with no words has no start time — default to 0
+                        // rather than force-unwrapping and crashing.
+                        offsetMs: $0.words.first?.starttime ?? 0
                     )
                 },
                 timeSynced: true,
@@ -118,9 +126,11 @@ class PetitLyricsRepository: LyricsRepository {
                     ? .canBeRomanized
                     : .original
             )
-            
+
         case .plain:
-            let stringLyrics = String(data: lyricsData, encoding: .utf8)!
+            guard let stringLyrics = String(data: lyricsData, encoding: .utf8) else {
+                throw LyricsError.decodingError
+            }
             let lines = stringLyrics.components(separatedBy: "\n")
             
             return LyricsDto(
