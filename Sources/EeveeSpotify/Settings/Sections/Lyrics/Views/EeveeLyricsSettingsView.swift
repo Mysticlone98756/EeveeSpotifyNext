@@ -25,7 +25,7 @@ struct EeveeLyricsSettingsView: View {
         .onReceive(viewModel.musixmatchTokenInputAlertPublisher) { showAnonymousTokenOption in
             showMusixmatchTokenAlert(UserDefaults.lyricsSource, showAnonymousTokenOption)
         }
-        .listStyle(GroupedListStyle())
+        .eeveeSettingsListStyle()
         .disabled(viewModel.isRequestingMusixmatchToken)
         .animation(.default, value: viewModel.animationValues)
     }

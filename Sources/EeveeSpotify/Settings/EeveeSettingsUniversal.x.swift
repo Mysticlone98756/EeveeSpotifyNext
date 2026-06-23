@@ -18,15 +18,17 @@ struct RootSettingsViewControllerGroup: HookGroup { }
 // not exist in the running Spotify build (prevents the Orion fatalError crash).
 func activateUniversalSettingsIntegration() {
     // Universal fallback — UINavigationController is always present.
+    HookGuard.note("Settings · nav stack", classes: ["UINavigationController"])
     UniversalSettingsIntegrationGroup().activate()
 
-    if NSClassFromString("ProfileSettingsSection") != nil {
+    // Version-specific classes — guarded so a missing one is skipped, not crashed.
+    HookGuard.activate("Settings · profile section", requires: ["ProfileSettingsSection"]) {
         ProfileSettingsSectionGroup().activate()
     }
-    if NSClassFromString("SettingsViewController") != nil {
+    HookGuard.activate("Settings · settings VC", requires: ["SettingsViewController"]) {
         SettingsViewControllerGroup().activate()
     }
-    if NSClassFromString("RootSettingsViewController") != nil {
+    HookGuard.activate("Settings · root settings VC", requires: ["RootSettingsViewController"]) {
         RootSettingsViewControllerGroup().activate()
     }
 }

@@ -20,8 +20,8 @@ private let petitLyricsRepository = PetitLyricsRepository()
 
 // Overload for 9.1.6 where we only have track ID from URL
 private func loadCustomLyricsForTrackId(_ trackId: String) throws -> Lyrics {
-    
-    let source = UserDefaults.lyricsSource
+
+    var source = UserDefaults.lyricsSource
     
     // Always clear captured metadata to ensure we fetch fresh info
     var currentTitle: String? = nil
@@ -114,21 +114,33 @@ private func loadCustomLyricsForTrackId(_ trackId: String) throws -> Lyrics {
         lyricsDto = try repository.getLyrics(searchQuery, options: options)
     }
     catch let error {
-        throw error
+        // Fall back to Genius (free, no token) when the chosen source fails and we
+        // have the track metadata Genius needs to search.
+        guard
+            source != .genius,
+            UserDefaults.lyricsOptions.geniusFallback,
+            !(currentTitle ?? "").isEmpty
+        else {
+            throw error
+        }
+
+        lyricsState.fallbackError = (error as? LyricsError) ?? .unknownError
+        source = .genius
+        lyricsDto = try geniusLyricsRepository.getLyrics(searchQuery, options: options)
     }
-    
+
     lyricsState.isEmpty = lyricsDto.lines.isEmpty
-    
+
     lyricsState.wasRomanized = lyricsDto.romanization == .romanized
         || (lyricsDto.romanization == .canBeRomanized && UserDefaults.lyricsOptions.romanization)
-    
+
     lyricsState.loadedSuccessfully = true
 
 
     let lyrics = Lyrics.with {
         $0.data = lyricsDto.toSpotifyLyricsData(source: source.description)
     }
-    
+
     return lyrics
 }
 

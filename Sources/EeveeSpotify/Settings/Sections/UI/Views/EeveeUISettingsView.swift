@@ -61,7 +61,7 @@ struct EeveeUISettingsView: View {
             NonIPadSpacerView()
         }
         
-        .listStyle(GroupedListStyle())
+        .eeveeSettingsListStyle()
         .animation(.default, value: lyricsColors)
     }
 }

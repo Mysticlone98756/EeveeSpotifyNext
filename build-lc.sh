@@ -55,6 +55,15 @@ cp -r "$SP_FW" "$OUT/SwiftProtobuf.framework"
 # Resource bundle with localizations — BundleHelper finds it next to the dylib.
 cp -r "$BUNDLE" "$OUT/EeveeSpotify.bundle"
 
+# The tweak links Orion via the rootful absolute path /Library/Frameworks/...
+# (that's only present on a jailbreak). Rewrite it to @rpath so it resolves from
+# the Tweaks folder next to the dylib — exactly like SwiftProtobuf — instead of
+# relying on LiveContainer remapping /Library/Frameworks (fragile, breaks easily).
+install_name_tool -change \
+    /Library/Frameworks/Orion.framework/Orion \
+    @rpath/Orion.framework/Orion \
+    "$OUT/EeveeSpotify.dylib" 2>/dev/null || true
+
 # 4. Orion is a HARD dependency of the tweak (@rpath/Orion.framework/Orion, not
 #    weak) and LiveContainer does NOT provide it, so it must ship here.
 #    Do NOT bundle CydiaSubstrate: Orion only weak-links it, and LiveContainer

@@ -154,8 +154,8 @@ struct EeveeSettingsView: View {
                 }
             }
         }
-        .listStyle(GroupedListStyle())
-        
+        .eeveeSettingsListStyle()
+
         .animation(.default, value: isClearingData)
         .animation(.default, value: hasShownCommonIssuesTip)
         

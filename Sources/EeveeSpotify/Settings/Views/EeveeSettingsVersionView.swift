@@ -39,37 +39,70 @@ struct EeveeSettingsVersionView: View {
     
     var body: some View {
         Section {
-            if isUpdateAvailable {
-                Link(
-                    "update_available".localized,
-                    destination: URL(string: "https://github.com/Meeep1/EeveeSpotifyRevivedPublic/releases")!
-                )
-            }
-        } footer: {
-            VStack(alignment: .leading) {
+            VStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: "#1ed760"), Color(hex: "#149c44")],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(color: Color(hex: "#1ed760").opacity(0.22), radius: 5, y: 2)
+
+                    Image(systemName: "music.note")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 74, height: 74)
+                .accessibilityHidden(true)
+
+                Text("EeveeSpotify")
+                    .font(.title3.weight(.bold))
+                    .foregroundColor(.white)
+
                 Text("v\(EeveeSpotify.version) (build \(EeveeSpotify.buildNumber))")
-                
-                if latestVersion == nil {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text("checking_for_update".localized)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+
+                Group {
+                    if isUpdateAvailable {
+                        Link(
+                            "update_available".localized,
+                            destination: URL(string: "https://github.com/w3ltyyy/EeveeSpotifyNext/releases")!
+                        )
+                        .font(.subheadline.weight(.semibold))
+                    }
+                    else if latestVersion == nil {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("checking_for_update".localized)
+                        }
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    }
+                    else {
+                        Button("\("contributors".localized)...") {
+                            isPresentingContributorsSheet = true
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.secondary)
                     }
                 }
-                else {
-                    Button("\("contributors".localized)...") {
-                        isPresentingContributorsSheet = true
-                    }
-                    .foregroundColor(.gray)
-                    .font(.subheadline.weight(.semibold))
-                }
+                .padding(.top, 2)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .listRowBackground(Color.clear)
+            .modifier(ListRowSeparatorHidden())
         }
         .sheet(isPresented: $isPresentingContributorsSheet) {
             EeveeContributorsSheetView()
         }
-        
+
         .animation(.default, value: latestVersion)
-        
+
         .onAppear {
             Task {
                 try await loadVersion()

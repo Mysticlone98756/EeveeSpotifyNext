@@ -21,6 +21,17 @@ private func planEndpointKind(_ path: String) -> String? {
     if path.contains("GetYourPremiumBadge") { return "badge" }
     if path.contains("GetPlanOverview") { return "overview" }
     if path.contains("premium-destination-hubs") { return "hub" }
+    // On 9.1.x the RemoteConfig customize that would disable these goes through async
+    // URLSession with a POST body we can't recover (re-issuing returns empty), so we
+    // block the free-tier endpoints directly:
+    //   capping-api  — drives the playback time-cap (tracks lag and auto-skip)
+    //   ad-logic / ads / leavebehinds — serve free-tier audio & display ads
+    if path.contains("capping-api") || path.contains("CappingApi")
+        || path.contains("/ad-logic/")
+        || path.contains("/ads/v")
+        || path.contains("leavebehinds/ads") {
+        return "block"
+    }
     return nil
 }
 
@@ -101,6 +112,21 @@ final class EeveePlanURLProtocol: URLProtocol {
 
         let kind = planEndpointKind(request.url?.path ?? "") ?? ""
         writeDebugLog("[PLAN-PROTO] handling \(kind) \(request.url?.path ?? "?")")
+
+        // Blocked endpoints (e.g. capping-api): return a synthetic empty 200 without
+        // hitting the network, so the free-tier consumption/cap is never reported.
+        if kind == "block" {
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: "HTTP/2",
+                headerFields: ["Content-Type": "application/grpc-web+proto"]
+            )!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data())
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
 
         innerTask = URLSession.shared.dataTask(with: mutable as URLRequest) { [weak self] data, response, error in
             guard let self = self else { return }

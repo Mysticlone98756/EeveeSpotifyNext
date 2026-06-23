@@ -194,6 +194,22 @@ struct EeveeSpotify: Tweak {
 
             }
             
+            // Compatibility report for the always-on / premium / lyrics hook targets
+            // (diagnostic only — viewable in Settings → Debug → Compatibility).
+            HookGuard.note("Session protection", classes: [
+                "SPTAuthSessionImplementation",
+                "_TtC24Connectivity_SessionImpl18SessionServiceImpl",
+                "SPTAuthLegacyLoginControllerImplementation",
+                "ARTWebSocketTransport",
+                "ARTSRWebSocket",
+            ])
+            if UserDefaults.patchType.isPatching {
+                HookGuard.note("Premium patching", classes: ["HUBViewModelBuilderImplementation"])
+            }
+            if lyricsEnabled {
+                HookGuard.note("Lyrics (9.1.x)", classes: ["NowPlaying_ScrollImpl.NPVScrollViewController"])
+            }
+
             // Settings integration (guarded: skips hooks for classes absent in this
             // Spotify build, e.g. ProfileSettingsSection/RootSettingsViewController
             // removed in 9.1.58, which would otherwise crash via an Orion fatalError)
